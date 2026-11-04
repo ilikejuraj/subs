@@ -50,6 +50,21 @@ Then start Flask in another terminal:
 uv run flask run --debug
 ```
 
+## Production login rate limiting
+
+Vercel Firewall enforces login rate limits before requests reach Flask. Configure and publish the rule separately in the Vercel dashboard; this repository does not provision it:
+
+- Match Request Path equal to `/login` **and** Method equal to `POST`.
+- Use a fixed window of 5 requests per 60 seconds, counted by IP address.
+- Return `429 Too Many Requests` when the limit is exceeded.
+- Apply the rule to all publicly accessible deployment environments and hostnames.
+
+This rule replaces the application's previous 5-per-minute and 20-per-hour limits; it does not preserve the hourly cap. Vercel counts requests per region.
+
+Local Flask and the Flask test client do not enforce login rate limits. Other hosting must provide equivalent protection. PostgreSQL is still required, but Redis is no longer used.
+
+When migrating an existing deployment, verify the firewall rule in Vercel's traffic logs before deploying this code. Keep the existing Redis service and `RATELIMIT_STORAGE_URI` available until the new production deployment is verified, then remove them. Verify normal login and an excess login request blocked by the firewall; a `429` from the old Flask limiter alone does not verify the firewall.
+
 ## Tests
 
 Run the test suite with:

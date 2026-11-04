@@ -75,25 +75,3 @@ def test_valid_calendar_token_returns_feed_without_login(app: Flask, repository:
     assert response.content_type == "text/calendar; charset=utf-8"
     assert response.headers["Content-Disposition"] == "inline; filename=subscription.ics"
     assert response.data.startswith(b"BEGIN:VCALENDAR")
-
-
-def test_login_is_rate_limited_by_remote_address(app: Flask) -> None:
-    client = app.test_client()
-    statuses = [
-        client.post(
-            "/login",
-            data={"passphrase": "wrong"},
-            environ_overrides={"REMOTE_ADDR": "198.51.100.8"},
-        ).status_code
-        for _ in range(6)
-    ]
-
-    assert statuses == [200, 200, 200, 200, 200, 429]
-    assert (
-        client.post(
-            "/login",
-            data={"passphrase": "wrong"},
-            environ_overrides={"REMOTE_ADDR": "198.51.100.9"},
-        ).status_code
-        == 200
-    )

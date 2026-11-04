@@ -2,7 +2,6 @@ import os
 import re
 from collections.abc import Mapping
 from typing import Any
-from urllib.parse import urlsplit
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 from dotenv import load_dotenv
@@ -16,7 +15,7 @@ from subs.blueprints.calendar import bp as ical_bp
 from subs.blueprints.subscriptions import bp as subs_bp
 from subs.formatting import format_eur
 
-from .extensions import csrf, db, limiter, migrate
+from .extensions import csrf, db, migrate
 from .models import Subscription as Subscription
 
 
@@ -30,7 +29,6 @@ def create_app(test_config: Mapping[str, Any] | None = None) -> Flask:
     db.init_app(app)
     migrate.init_app(app, db, compare_server_default=True)
     csrf.init_app(app)
-    limiter.init_app(app)
 
     app.register_blueprint(auth_bp)
     app.register_blueprint(subs_bp)
@@ -65,7 +63,6 @@ def _load_config(overrides: Mapping[str, Any] | None = None) -> dict[str, Any]:
     config: dict[str, Any] = {
         "APP_ENV": os.environ.get("APP_ENV"),
         "DATABASE_URL": os.environ.get("DATABASE_URL"),
-        "RATELIMIT_STORAGE_URI": os.environ.get("RATELIMIT_STORAGE_URI"),
         "SECRET_KEY": os.environ.get("SECRET_KEY"),
         "PASSPHRASE_HASH": os.environ.get("PASSPHRASE_HASH"),
         "CALENDAR_FEED_TOKEN": os.environ.get("CALENDAR_FEED_TOKEN"),
@@ -97,13 +94,6 @@ def _validate_and_normalize_config(config: dict[str, Any]) -> None:
         raise RuntimeError("DATABASE_URL must use PostgreSQL")
     config["SQLALCHEMY_DATABASE_URI"] = re.sub(r"^postgresql:", "postgresql+psycopg:", database_url)
 
-    storage_uri = config.get("RATELIMIT_STORAGE_URI")
-    if environment == "production":
-        if not isinstance(storage_uri, str) or not _is_shared_redis_uri(storage_uri):
-            raise RuntimeError("RATELIMIT_STORAGE_URI must use shared Redis in production")
-    elif not storage_uri:
-        config["RATELIMIT_STORAGE_URI"] = "memory://"
-
     secret_key = config.get("SECRET_KEY")
     if not isinstance(secret_key, str) or not secret_key:
         raise RuntimeError("SECRET_KEY must be configured")
@@ -133,8 +123,3 @@ def _validate_and_normalize_config(config: dict[str, Any]) -> None:
         raise TypeError("TIMEZONE must be configured as a valid IANA timezone")
 
     config["SESSION_COOKIE_SECURE"] = environment == "production"
-
-
-def _is_shared_redis_uri(storage_uri: str) -> bool:
-    parsed_uri = urlsplit(storage_uri)
-    return parsed_uri.scheme in {"redis", "rediss"} and parsed_uri.hostname is not None
